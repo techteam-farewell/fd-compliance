@@ -14,8 +14,5 @@ php artisan view:cache
 # Fix permissions
 chmod -R 775 storage bootstrap/cache
 
-# Move into public folder
-cd public
-
-# Start server manually
-php -S 0.0.0.0:8000 index.php
+# Start Laravel's built-in PHP server
+php -S 0.0.0.0:8080 -t public
