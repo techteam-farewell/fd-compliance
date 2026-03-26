@@ -2,19 +2,19 @@
 
 cd /home/site/wwwroot
 
-echo "Fixing Laravel structure..."
+echo "Running composer install..."
+composer install --no-dev --optimize-autoloader
 
-# Ensure required folders
-mkdir -p storage bootstrap/cache
+echo "Running Laravel optimizations..."
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
 
-# Fix permissions
-chmod -R 775 storage bootstrap/cache
-chmod -R 755 public
+echo "Fixing permissions..."
+chmod -R 775 storage
+chmod -R 775 bootstrap/cache
 
-# Remove default Azure page
-rm -f hostingstart.html
-
-# Copy Laravel public files to root (IMPORTANT)
+echo "Moving public files..."
 cp -r public/* /home/site/wwwroot/
 
-echo "Startup complete."
+echo "Startup script completed!"
