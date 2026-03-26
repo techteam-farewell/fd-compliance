@@ -1,5 +1,4 @@
 #!/bin/bash
-
 cd /home/site/wwwroot
 
 echo "Installing dependencies..."
@@ -14,4 +13,4 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-echo "Startup script completed!"
+echo "Laravel setup complete!"
