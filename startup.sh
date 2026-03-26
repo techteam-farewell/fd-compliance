@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "STARTUP SCRIPT IS RUNNING" > /home/site/wwwroot/test.txt
+echo "STARTUP SCRIPT IS RUNNING" > /home/site/wwwroot/tester.txt
 
 cd /home/site/wwwroot
 
