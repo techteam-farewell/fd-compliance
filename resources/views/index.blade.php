@@ -20,7 +20,14 @@
     <button id="btnAuto" type="button">Run checks</button>
     <span id="autoStatus"></span>
   </label>
-  <small>Set your endpoint in <code>app.js</code> (hydrateFromAuto). Fields stay editable for corrections.</small>
+    <div style="margin-top:10px;">
+        <label>
+        <strong>Select correct match (VERY IMPORTANT)</strong>
+        <select id="placeSelect" style="width:100%; padding:10px;">
+            <option value="">-- Select correct business --</option>
+        </select>
+        </label>
+    </div>
 </div>
 
 <main>
