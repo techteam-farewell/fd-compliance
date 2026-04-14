@@ -51,6 +51,10 @@
     lines.push(`- Filings: ${d.filings || '—'}`);
     lines.push(`- CH URL: ${d.chUrl || '—'}\n`);
 
+    lines.push('**Membership Checks**');
+    lines.push(`- NAFD: ${d.nafdMember || '—'} (${d.nafdEvidence || '—'})`);
+    lines.push(`- SAIF: ${d.saifMember || '—'} (${d.saifEvidence || '—'})\n`);
+
     lines.push('**Traffic-Light Summary**');
     lines.push(`- Reviews: ${d.riskReviews} | CH: ${d.riskCH}`);
 
@@ -68,10 +72,12 @@
       phone: $('phone').value,
       email: $('email').value,
       dateChecked: $('dateChecked').value,
+
       googleUrl: $('googleUrl').value,
       googleRating: $('googleRating').value,
       googleCount: $('googleCount').value,
       googleDate: $('googleDate').value,
+
       chStatus: $('chStatus').value,
       sic: $('sic').value,
       registeredOffice: $('registeredOffice').value,
@@ -79,6 +85,12 @@
       nextCS: $('nextCS').value,
       filings: $('filings').value,
       chUrl: $('chUrl').value,
+
+      nafdMember: $('nafdMember').value,
+      nafdEvidence: $('nafdEvidence').value,
+      saifMember: $('saifMember').value,
+      saifEvidence: $('saifEvidence').value,
+
       riskReviews: $('riskReviews').value,
       riskCH: $('riskCH').value
     };
@@ -133,10 +145,6 @@
       apiData = data;
 
       populatePlaces(data.places);
-
-      // ❗ DO NOT auto-apply first result anymore
-      // User must choose correct one
-
       fillFields(data);
 
       $('btnCHOpen').disabled = !data.chUrl;
@@ -189,6 +197,10 @@
       }
     });
 
+    if(data.postcode && $('address').value && !$('address').value.includes(data.postcode)){
+      $('address').value += ' (' + data.postcode + ')';
+    }
+
     if(data.shopfrontData){
       $('shopfrontPreview').src = data.shopfrontData;
     }
@@ -225,7 +237,49 @@
     window.open(url,'_blank');
   });
 
+  /* -------------------------
+     ✅ NEW: OPEN NAFD / SAIF LINKS
+  --------------------------*/
+  $('btnOpenNafd').addEventListener('click', ()=>{
+    const url = $('nafdEvidence').value.trim();
+
+    if(!url){
+      alert('No NAFD link available');
+      return;
+    }
+
+    window.open(url, '_blank');
+  });
+
+  $('btnOpenSaif').addEventListener('click', ()=>{
+    const url = $('saifEvidence').value.trim();
+
+    if(!url){
+      alert('No SAIF link available');
+      return;
+    }
+
+    window.open(url, '_blank');
+  });
+
   $('btnPreview').addEventListener('click', preview);
   $('btnExportJSON').addEventListener('click', exportJSON);
+
+  /* -------------------------
+   ✅ NEW: OPEN WEBSITE
+--------------------------*/
+  $('btnOpenWebsite').addEventListener('click', ()=>{
+    const url = $('website').value.trim();
+
+    if(!url){
+      alert('No website URL available');
+      return;
+    }
+
+    // Ensure URL has protocol
+    const finalUrl = url.startsWith('http') ? url : 'https://' + url;
+
+    window.open(finalUrl, '_blank');
+  });
 
 })();
