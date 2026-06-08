@@ -31,20 +31,6 @@
 </div>
 
 <main>
-  <!-- <section class="card" id="firm-section">
-    <h2>A) Firm Overview</h2>
-    <div class="grid two">
-      <label>Firm Name<input id="firmName" type="text" required></label>
-      <label>Trading Name(s)<input id="tradingNames" type="text"></label>
-      <label>Registered Company Name<input id="registeredName" type="text"></label>
-      <label>Company Number<input id="companyNumber" type="text"></label>
-      <label>Address<textarea id="address" rows="2"></textarea></label>
-      <label>Website<input id="website" type="url" placeholder="https://..."></label>
-      <label>Primary Phone<input id="phone" type="tel"></label>
-      <label>Primary Email<input id="email" type="email"></label>
-      <label>Date Checked<input id="dateChecked" type="date"></label>
-    </div>
-  </section> -->
   <section class="card" id="firm-section">
     <h2>A) Firm Overview</h2>
     <div class="grid two">
@@ -76,20 +62,6 @@
       <div><label>Preview</label><img id="shopfrontPreview" alt="Shopfront preview"/></div>
     </div>
   </section>
-
-  <!-- <section class="card" id="membership-section">
-    <h2>B) Trade Association Membership</h2>
-    <div class="grid two">
-      <label>NAFD Member?<select id="nafdMember"><option>Unknown</option><option>Yes</option><option>No</option></select></label>
-      <label>NAFD Membership No.<input id="nafdNumber" type="text"></label>
-      <label>SAIF Member?<select id="saifMember"><option>Unknown</option><option>Yes</option><option>No</option></select></label>
-      <label>SAIF Membership No.<input id="saifNumber" type="text"></label>
-    </div>
-    <div class="grid two">
-      <label>NAFD Evidence (URL)<input id="nafdEvidence" type="url"></label>
-      <label>SAIF Evidence (URL)<input id="saifEvidence" type="url"></label>
-    </div>
-  </section> -->
 
   <section class="card" id="membership-section">
     <h2>B) Trade Association Membership</h2>

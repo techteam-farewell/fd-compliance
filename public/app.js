@@ -1,285 +1,569 @@
-(function(){
-  const $ = (id) => document.getElementById(id);
+(function () {
 
-  let isHydrating = false;
-  let apiData = null;
+    const $ = (id) => document.getElementById(id);
 
-  const ENDPOINT = '/api/compliance/lookup';
+    let isHydrating = false;
+    let apiData = null;
 
-  /* -------------------------
-     VALIDATION
-  --------------------------*/
-  function validateReviews(){
-    const url = $('googleUrl').value.trim();
-    const rating = parseFloat($('googleRating').value);
-    const count = parseInt($('googleCount').value,10);
-    const date = $('googleDate').value;
+    const ENDPOINT = '/api/compliance/lookup';
 
-    if(!url || isNaN(rating) || isNaN(count) || !date){
-      alert('Google Reviews URL, Rating, Count, and Date are required.');
-      return false;
-    }
-    return true;
-  }
+    function validateReviews() {
 
-  /* -------------------------
-     PREVIEW
-  --------------------------*/
-  function preview(){
-    if(!validateReviews()) return;
+        const url = $('googleUrl').value.trim();
+        const rating = parseFloat($('googleRating').value);
+        const count = parseInt($('googleCount').value, 10);
+        const date = $('googleDate').value;
 
-    const d = collect();
-    const lines = [];
+        if (!url || isNaN(rating) || isNaN(count) || !date) {
 
-    lines.push(`# Funeral Director Compliance Report — ${d.firmName || 'Unknown Firm'}`);
-    lines.push(`Date Checked: ${d.dateChecked || ''}\n`);
+            alert(
+                'Google Reviews URL, Rating, Count, and Date are required.'
+            );
 
-    lines.push('**Firm Overview**');
-    lines.push(`- Registered Company: ${d.registeredName || '—'} (No. ${d.companyNumber || '—'})`);
-    lines.push(`- Address: ${d.address || '—'}`);
-    lines.push(`- Website: ${d.website || '—'}`);
-    lines.push(`- Phone/Email: ${d.phone || '—'} / ${d.email || '—'}\n`);
+            return false;
+        }
 
-    lines.push('**Google Reviews (Required)**');
-    lines.push(`- Score: ${d.googleRating}★ from ${d.googleCount} reviews (captured ${d.googleDate})`);
-    lines.push(`- Link: ${d.googleUrl}\n`);
-
-    lines.push('**Companies House**');
-    lines.push(`- Status: ${d.chStatus || '—'} | SIC: ${d.sic || '—'}`);
-    lines.push(`- Registered Office: ${d.registeredOffice || '—'}`);
-    lines.push(`- Next accounts due: ${d.nextAccounts || '—'} | CS due: ${d.nextCS || '—'}`);
-    lines.push(`- Filings: ${d.filings || '—'}`);
-    lines.push(`- CH URL: ${d.chUrl || '—'}\n`);
-
-    lines.push('**Membership Checks**');
-    lines.push(`- NAFD: ${d.nafdMember || '—'} (${d.nafdEvidence || '—'})`);
-    lines.push(`- SAIF: ${d.saifMember || '—'} (${d.saifEvidence || '—'})\n`);
-
-    lines.push('**Traffic-Light Summary**');
-    lines.push(`- Reviews: ${d.riskReviews} | CH: ${d.riskCH}`);
-
-    $('previewContent').textContent = lines.join('\r\n');
-    $('preview').hidden = false;
-  }
-
-  function collect(){
-    return {
-      firmName: $('firmName').value,
-      registeredName: $('registeredName').value,
-      companyNumber: $('companyNumber').value,
-      address: $('address').value,
-      website: $('website').value,
-      phone: $('phone').value,
-      email: $('email').value,
-      dateChecked: $('dateChecked').value,
-
-      googleUrl: $('googleUrl').value,
-      googleRating: $('googleRating').value,
-      googleCount: $('googleCount').value,
-      googleDate: $('googleDate').value,
-
-      chStatus: $('chStatus').value,
-      sic: $('sic').value,
-      registeredOffice: $('registeredOffice').value,
-      nextAccounts: $('nextAccounts').value,
-      nextCS: $('nextCS').value,
-      filings: $('filings').value,
-      chUrl: $('chUrl').value,
-
-      nafdMember: $('nafdMember').value,
-      nafdEvidence: $('nafdEvidence').value,
-      saifMember: $('saifMember').value,
-      saifEvidence: $('saifEvidence').value,
-
-      riskReviews: $('riskReviews').value,
-      riskCH: $('riskCH').value
-    };
-  }
-
-  /* -------------------------
-     EXPORT
-  --------------------------*/
-  function exportJSON(){
-    if(!validateReviews()) return;
-
-    const data = collect();
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
-    const a = document.createElement('a');
-
-    a.href = URL.createObjectURL(blob);
-    a.download = 'compliance_report.json';
-    a.click();
-  }
-
-  /* -------------------------
-     API
-  --------------------------*/
-  async function hydrateFromAuto(){
-
-    isHydrating = true;
-
-    const q = $('autoQuery').value.trim();
-    const pc = $('autoPostcode').value.trim();
-    const status = $('autoStatus');
-
-    if(!q){
-      alert('Enter a name');
-      isHydrating = false;
-      return;
+        return true;
     }
 
-    status.textContent = 'Looking up…';
+    function collect() {
 
-    try{
-      const res = await fetch(ENDPOINT,{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'Accept':'application/json'
-        },
-        body: JSON.stringify({query:q, postcode:pc})
-      });
+        const data = {};
 
-      const data = await res.json();
-      apiData = data;
+        document
+            .querySelectorAll('input, textarea, select')
+            .forEach(el => {
 
-      populatePlaces(data.places);
-      fillFields(data);
+                if (el.id) {
 
-      $('btnCHOpen').disabled = !data.chUrl;
+                    data[el.id] = el.value;
+                }
+            });
 
-      status.textContent = 'Select correct business below';
-
-    }catch(e){
-      console.error(e);
-      status.textContent = 'Error fetching data';
+        return data;
     }
 
-    isHydrating = false;
-  }
+    function preview() {
 
-  function populatePlaces(places){
-    const select = $('placeSelect');
-    select.innerHTML = '<option value="">-- Select correct business --</option>';
+        if (!validateReviews()) {
+            return;
+        }
 
-    if(!places) return;
+        const d = collect();
 
-    places.forEach((p,i)=>{
-      const opt = document.createElement('option');
-      opt.value = i;
-      opt.textContent = `${p.name} (${p.address || 'No address'})`;
-      select.appendChild(opt);
-    });
-  }
+        $('previewContent').innerHTML = `
+            <h3>${d.firmName || 'Unknown Firm'}</h3>
 
-  function applyPlace(place){
-    if(!place) return;
+            <table border="1" cellpadding="8" cellspacing="0" width="100%">
+                <tr>
+                    <th align="left">Field</th>
+                    <th align="left">Value</th>
+                </tr>
 
-    $('firmName').value = place.name || '';
-    $('address').value = place.address || '';
-    $('googleUrl').value = place.googleMapsUri || '';
-    $('googleRating').value = place.rating || '';
-    $('googleCount').value = place.userRatingCount || '';
-  }
+                <tr>
+                    <td>Registered Name</td>
+                    <td>${d.registeredName || '-'}</td>
+                </tr>
 
-  function fillFields(data){
-    Object.entries(data).forEach(([key,value])=>{
-      const el = $(key);
-      if(!el) return;
+                <tr>
+                    <td>Company Number</td>
+                    <td>${d.companyNumber || '-'}</td>
+                </tr>
 
-      if(value === null) value = '';
+                <tr>
+                    <td>Address</td>
+                    <td>${d.address || '-'}</td>
+                </tr>
 
-      if(el.type === 'date' && value){
-        el.value = value.slice(0,10);
-      } else {
-        el.value = value;
-      }
-    });
+                <tr>
+                    <td>Website</td>
+                    <td>${d.website || '-'}</td>
+                </tr>
 
-    if(data.postcode && $('address').value && !$('address').value.includes(data.postcode)){
-      $('address').value += ' (' + data.postcode + ')';
+                <tr>
+                    <td>Phone</td>
+                    <td>${d.phone || '-'}</td>
+                </tr>
+
+                <tr>
+                    <td>Google Rating</td>
+                    <td>${d.googleRating || '-'}</td>
+                </tr>
+
+                <tr>
+                    <td>Google Reviews</td>
+                    <td>${d.googleCount || '-'}</td>
+                </tr>
+
+                <tr>
+                    <td>Google URL</td>
+                    <td>${d.googleUrl || '-'}</td>
+                </tr>
+
+                <tr>
+                    <td>Companies House Status</td>
+                    <td>${d.chStatus || '-'}</td>
+                </tr>
+
+                <tr>
+                    <td>SIC</td>
+                    <td>${d.sic || '-'}</td>
+                </tr>
+
+                <tr>
+                    <td>Registered Office</td>
+                    <td>${d.registeredOffice || '-'}</td>
+                </tr>
+
+                <tr>
+                    <td>Latest Filings</td>
+                    <td>${(d.filings || '-').replace(/\n/g, '<br>')}</td>
+                </tr>
+            </table>
+        `;
+
+        $('preview').hidden = false;
+
+        $('preview').scrollIntoView({
+            behavior: 'smooth'
+        });
     }
 
-    if(data.shopfrontData){
-      $('shopfrontPreview').src = data.shopfrontData;
-    }
-  }
+    async function hydrateFromAuto() {
 
-  /* -------------------------
-     EVENTS
-  --------------------------*/
-  window.addEventListener('load', ()=> {
-    $('dateChecked').value = new Date().toISOString().slice(0,10);
-    $('googleDate').value = new Date().toISOString().slice(0,10);
-  });
+        isHydrating = true;
 
-  $('btnAuto').addEventListener('click', hydrateFromAuto);
+        const q = $('autoQuery').value.trim();
+        const pc = $('autoPostcode').value.trim();
 
-  $('placeSelect').addEventListener('change',(e)=>{
-    const index = e.target.value;
+        const status = $('autoStatus');
 
-    if(index === '') return;
+        if (!q) {
 
-    applyPlace(apiData.places[index]);
+            alert('Enter a name');
 
-    $('autoStatus').textContent = '✓ Correct business selected';
-  });
+            isHydrating = false;
 
-  $('btnCHOpen').addEventListener('click', ()=>{
-    const url = apiData?.chUrl || $('chUrl').value;
+            return;
+        }
 
-    if(!url){
-      alert('No Companies House URL');
-      return;
-    }
+        status.textContent = 'Looking up...';
 
-    window.open(url,'_blank');
-  });
+        try {
 
-  /* -------------------------
-     ✅ NEW: OPEN NAFD / SAIF LINKS
-  --------------------------*/
-  $('btnOpenNafd').addEventListener('click', ()=>{
-    const url = $('nafdEvidence').value.trim();
+            const res = await fetch(
+                ENDPOINT,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: q,
+                        postcode: pc
+                    })
+                }
+            );
 
-    if(!url){
-      alert('No NAFD link available');
-      return;
-    }
+            if (!res.ok) {
 
-    window.open(url, '_blank');
-  });
+                throw new Error(
+                    'Request failed with status ' + res.status
+                );
+            }
 
-  $('btnOpenSaif').addEventListener('click', ()=>{
-    const url = $('saifEvidence').value.trim();
+            const data = await res.json();
 
-    if(!url){
-      alert('No SAIF link available');
-      return;
-    }
+            console.log('API DATA', data);
 
-    window.open(url, '_blank');
-  });
+            apiData = data;
 
-  $('btnPreview').addEventListener('click', preview);
-  $('btnExportJSON').addEventListener('click', exportJSON);
+            populatePlaces(data.places || []);
 
-  /* -------------------------
-   ✅ NEW: OPEN WEBSITE
---------------------------*/
-  $('btnOpenWebsite').addEventListener('click', ()=>{
-    const url = $('website').value.trim();
+            fillFields(data);
 
-    if(!url){
-      alert('No website URL available');
-      return;
+            $('btnCHOpen').disabled = !data.chUrl;
+
+            status.textContent =
+                'Select correct business below';
+
+        } catch (e) {
+
+            console.error(e);
+
+            status.textContent =
+                'Error fetching data';
+        }
+
+        isHydrating = false;
     }
 
-    // Ensure URL has protocol
-    const finalUrl = url.startsWith('http') ? url : 'https://' + url;
+    function populatePlaces(places) {
 
-    window.open(finalUrl, '_blank');
-  });
+        const select = $('placeSelect');
+
+        select.innerHTML =
+            '<option value="">-- Select correct business --</option>';
+
+        if (!Array.isArray(places)) {
+            return;
+        }
+
+        places.forEach((p, i) => {
+
+            const opt =
+                document.createElement('option');
+
+            opt.value = i;
+
+            opt.textContent =
+                `${p.name || 'Unknown'} (${p.address || 'No address'})`;
+
+            select.appendChild(opt);
+        });
+    }
+
+    function applyPlace(place) {
+
+        if (!place) {
+            return;
+        }
+
+        $('firmName').value =
+            place.name || '';
+
+        $('address').value =
+            place.address || '';
+
+        $('googleUrl').value =
+            place.googleMapsUri || '';
+
+        $('googleRating').value =
+            place.rating || '';
+
+        $('googleCount').value =
+            place.userRatingCount || '';
+    }
+
+    function fillFields(data) {
+
+        Object.entries(data).forEach(([key, value]) => {
+
+            const el = $(key);
+
+            if (!el) {
+                return;
+            }
+
+            if (value === null) {
+                value = '';
+            }
+
+            if (
+                el.type === 'date'
+                && value
+            ) {
+
+                el.value =
+                    value.toString().slice(0, 10);
+
+            } else {
+
+                el.value = value;
+            }
+        });
+
+        if (
+            data.postcode
+            && $('address').value
+            && !$('address').value.includes(data.postcode)
+        ) {
+
+            $('address').value +=
+                ' (' + data.postcode + ')';
+        }
+
+        const preview =
+            $('shopfrontPreview');
+
+        if (data.shopfrontData) {
+
+            preview.src =
+                data.shopfrontData;
+
+        } else {
+
+            preview.src =
+                'https://via.placeholder.com/400x250?text=No+Image';
+        }
+
+        preview.onerror = () => {
+
+            preview.src =
+                'https://via.placeholder.com/400x250?text=Image+Unavailable';
+        };
+    }
+
+    function exportJSON() {
+
+        const data = collect();
+
+        const blob = new Blob(
+            [
+                JSON.stringify(
+                    data,
+                    null,
+                    2
+                )
+            ],
+            {
+                type: 'application/json'
+            }
+        );
+
+        const url =
+            URL.createObjectURL(blob);
+
+        const a =
+            document.createElement('a');
+
+        a.href = url;
+
+        a.download =
+            (
+                data.firmName ||
+                'compliance-report'
+            )
+                .replace(/\s+/g, '-')
+                .toLowerCase()
+            + '.json';
+
+        document.body.appendChild(a);
+
+        a.click();
+
+        a.remove();
+
+        URL.revokeObjectURL(url);
+    }
+
+    async function copySummary() {
+
+        const d = collect();
+
+        const text = `
+Firm Name: ${d.firmName || ''}
+Registered Name: ${d.registeredName || ''}
+Company Number: ${d.companyNumber || ''}
+Address: ${d.address || ''}
+Website: ${d.website || ''}
+Phone: ${d.phone || ''}
+Google Rating: ${d.googleRating || ''}
+Google Reviews: ${d.googleCount || ''}
+Google URL: ${d.googleUrl || ''}
+`;
+
+        try {
+
+            await navigator.clipboard.writeText(text);
+
+            alert('Summary copied');
+
+        } catch (e) {
+
+            console.error(e);
+
+            alert('Copy failed');
+        }
+    }
+
+    function resetForm() {
+
+        if (
+            !confirm(
+                'Clear all entered data?'
+            )
+        ) {
+            return;
+        }
+
+        document
+            .querySelectorAll(
+                'input, textarea'
+            )
+            .forEach(el => {
+
+                if (
+                    el.type !== 'button'
+                    && el.type !== 'file'
+                ) {
+
+                    el.value = '';
+                }
+            });
+
+        document
+            .querySelectorAll('select')
+            .forEach(el => {
+
+                el.selectedIndex = 0;
+            });
+
+        $('previewContent').innerHTML = '';
+
+        $('preview').hidden = true;
+
+        $('autoStatus').textContent = '';
+
+        $('placeSelect').innerHTML =
+            '<option value="">-- Select correct business --</option>';
+
+        $('shopfrontPreview').src = '';
+
+        apiData = null;
+
+        const today =
+            new Date()
+                .toISOString()
+                .slice(0, 10);
+
+        $('dateChecked').value =
+            today;
+
+        $('googleDate').value =
+            today;
+    }
+
+    function openUrl(url) {
+
+        if (!url) {
+
+            alert('No URL available');
+
+            return;
+        }
+
+        window.open(
+            url,
+            '_blank'
+        );
+    }
+
+    document.addEventListener(
+        'DOMContentLoaded',
+        () => {
+
+            const today =
+                new Date()
+                    .toISOString()
+                    .slice(0, 10);
+
+            $('dateChecked').value =
+                today;
+
+            $('googleDate').value =
+                today;
+
+            $('btnAuto')
+                .addEventListener(
+                    'click',
+                    hydrateFromAuto
+                );
+
+            $('placeSelect')
+                .addEventListener(
+                    'change',
+                    (e) => {
+
+                        const index =
+                            e.target.value;
+
+                        if (
+                            index === ''
+                        ) {
+                            return;
+                        }
+
+                        applyPlace(
+                            apiData.places[index]
+                        );
+
+                        $('autoStatus')
+                            .textContent =
+                            '✓ Correct business selected';
+                    }
+                );
+
+            $('btnPreview')
+                .addEventListener(
+                    'click',
+                    preview
+                );
+
+            $('btnExportJSON')
+                .addEventListener(
+                    'click',
+                    exportJSON
+                );
+
+            $('btnCopy')
+                .addEventListener(
+                    'click',
+                    copySummary
+                );
+
+            $('btnReset')
+                .addEventListener(
+                    'click',
+                    resetForm
+                );
+
+            $('btnCHOpen')
+                .addEventListener(
+                    'click',
+                    () => {
+
+                        openUrl(
+                            apiData?.chUrl
+                            || $('chUrl').value
+                        );
+                    }
+                );
+
+            $('btnOpenWebsite')
+                .addEventListener(
+                    'click',
+                    () => {
+
+                        openUrl(
+                            $('website').value
+                        );
+                    }
+                );
+
+            $('btnOpenNafd')
+                .addEventListener(
+                    'click',
+                    () => {
+
+                        openUrl(
+                            $('nafdEvidence').value
+                        );
+                    }
+                );
+
+            $('btnOpenSaif')
+                .addEventListener(
+                    'click',
+                    () => {
+
+                        openUrl(
+                            $('saifEvidence').value
+                        );
+                    }
+                );
+        }
+    );
 
 })();
