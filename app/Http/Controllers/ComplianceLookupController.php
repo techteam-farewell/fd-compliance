@@ -16,9 +16,11 @@ class ComplianceLookupController extends Controller
             'postcode' => 'nullable|string',
         ]);
 
+
         $searchText = trim(
             $validated['query'] . ' ' . ($validated['postcode'] ?? '')
         );
+
 
         /*
         |--------------------------------------------------------------------------
@@ -32,6 +34,7 @@ class ComplianceLookupController extends Controller
 
             $placesResponse = Http::withHeaders([
                 'X-Goog-Api-Key' => config('services.google.key'),
+
                 'X-Goog-FieldMask' =>
                     'places.id,' .
                     'places.displayName,' .
@@ -40,25 +43,50 @@ class ComplianceLookupController extends Controller
                     'places.googleMapsUri,' .
                     'places.formattedAddress,' .
                     'places.photos'
+
             ])->post(
                 'https://places.googleapis.com/v1/places:searchText',
                 [
-                    'textQuery' => $searchText,
+                    'textQuery' => $searchText
                 ]
             );
 
+
             if ($placesResponse->successful()) {
-                $places = $placesResponse->json('places', []);
+
+                $places =
+                    $placesResponse->json('places', []);
+
+            } else {
+
+                Log::error(
+                    'Google Places Search Failed',
+                    [
+                        'status' =>
+                            $placesResponse->status(),
+
+                        'body' =>
+                            $placesResponse->body()
+                    ]
+                );
             }
+
 
         } catch (\Exception $e) {
 
-            \Log::error('Google Places Error', [
-                'message' => $e->getMessage()
-            ]);
+            Log::error(
+                'Google Places Error',
+                [
+                    'message' =>
+                        $e->getMessage()
+                ]
+            );
         }
 
-        $firstPlace = $places[0] ?? [];
+
+        $firstPlace =
+            $places[0] ?? [];
+
 
         /*
         |--------------------------------------------------------------------------
@@ -68,7 +96,9 @@ class ComplianceLookupController extends Controller
 
         $postcode = null;
 
+
         if (!empty($firstPlace['formattedAddress'])) {
+
 
             preg_match(
                 '/[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}/i',
@@ -76,8 +106,12 @@ class ComplianceLookupController extends Controller
                 $matches
             );
 
-            $postcode = $matches[0] ?? null;
+
+            $postcode =
+                $matches[0] ?? null;
         }
+
+
 
         /*
         |--------------------------------------------------------------------------
@@ -86,41 +120,73 @@ class ComplianceLookupController extends Controller
         */
 
         $website = null;
+
         $phone = null;
+
 
         if (!empty($firstPlace['id'])) {
 
+
             try {
 
+
                 $detailsResponse = Http::withHeaders([
-                    'X-Goog-Api-Key' => config('services.google.key'),
+
+                    'X-Goog-Api-Key' =>
+                        config('services.google.key'),
+
                     'X-Goog-FieldMask' =>
                         'websiteUri,' .
                         'nationalPhoneNumber,' .
                         'internationalPhoneNumber'
+
                 ])->get(
+
                     "https://places.googleapis.com/v1/places/{$firstPlace['id']}"
+
                 );
+
+
 
                 if ($detailsResponse->successful()) {
 
-                    $details = $detailsResponse->json();
 
-                    $website = $details['websiteUri'] ?? null;
+                    $details =
+                        $detailsResponse->json();
+
+
+                    $website =
+                        $details['websiteUri']
+                        ?? null;
+
+
 
                     $phone =
                         $details['internationalPhoneNumber']
-                        ?? $details['nationalPhoneNumber']
-                        ?? null;
+                        ??
+                        $details['nationalPhoneNumber']
+                        ??
+                        null;
+
                 }
+
 
             } catch (\Exception $e) {
 
-                \Log::error('Place Details Error', [
-                    'message' => $e->getMessage()
-                ]);
+
+                Log::error(
+                    'Place Details Error',
+                    [
+                        'message' =>
+                            $e->getMessage()
+                    ]
+                );
+
             }
+
         }
+
+
 
         /*
         |--------------------------------------------------------------------------
@@ -128,127 +194,289 @@ class ComplianceLookupController extends Controller
         |--------------------------------------------------------------------------
         */
 
+
         $photoUrl = null;
 
-        if (!empty($firstPlace['photos'][0]['name'])) {
 
-            $photoName = $firstPlace['photos'][0]['name'];
+        if (
+            !empty($firstPlace['photos'][0]['name'])
+        ) {
+
+
+            $photoName =
+                $firstPlace['photos'][0]['name'];
+
+
 
             $photoUrl =
                 "https://places.googleapis.com/v1/{$photoName}/media"
-                . "?maxWidthPx=400"
-                . "&key=" . config('services.google.key');
+                .
+                "?maxWidthPx=400"
+                .
+                "&key="
+                .
+                config('services.google.key');
+
         }
+
+
+
+
 
         /*
         |--------------------------------------------------------------------------
-        | COMPANIES HOUSE
+        | COMPANIES HOUSE SEARCH
         |--------------------------------------------------------------------------
         */
+
 
         $items = [];
 
+
         try {
 
+
             $companiesResponse = Http::withBasicAuth(
+
                 config('services.companies_house.key'),
+
                 ''
+
             )->get(
+
                 'https://api.company-information.service.gov.uk/search/companies',
+
                 [
-                    'q' => $validated['query'],
-                    'items_per_page' => 5,
+
+                    'q' =>
+                        $validated['query'],
+
+                    'items_per_page' =>
+                        10
+
                 ]
+
             );
+
+
 
             if ($companiesResponse->successful()) {
-                $items = $companiesResponse->json('items', []);
-            }
 
-        } catch (\Exception $e) {
 
-            \Log::error('Companies House Error', [
-                'message' => $e->getMessage()
-            ]);
-        }
+                $items =
+                    $companiesResponse->json('items', []);
 
-        /*
-        |--------------------------------------------------------------------------
-        | BETTER COMPANY MATCHING
-        |--------------------------------------------------------------------------
-        */
 
-        $company = collect($items)->first(function ($item) use ($validated) {
+            } else {
 
-            similar_text(
-                strtoupper($item['title'] ?? ''),
-                strtoupper($validated['query']),
-                $percent
-            );
 
-            return $percent >= 70;
-        });
-
-        if (!$company && count($items) > 0) {
-            $company = $items[0];
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | COMPANY PROFILE
-        |--------------------------------------------------------------------------
-        */
-
-        $companyProfile = null;
-        $filings = null;
-
-        if (!empty($company['company_number'])) {
-
-            try {
-
-                $profileResponse = Http::withBasicAuth(
-                    config('services.companies_house.key'),
-                    ''
-                )->get(
-                    "https://api.company-information.service.gov.uk/company/{$company['company_number']}"
-                );
-
-                if ($profileResponse->successful()) {
-                    $companyProfile = $profileResponse->json();
-                }
-
-                $filingsResponse = Http::withBasicAuth(
-                    config('services.companies_house.key'),
-                    ''
-                )->get(
-                    "https://api.company-information.service.gov.uk/company/{$company['company_number']}/filing-history",
+                Log::error(
+                    'Companies House Search Failed',
                     [
-                        'items_per_page' => 5
+                        'status' =>
+                            $companiesResponse->status(),
+
+                        'body' =>
+                            $companiesResponse->body()
                     ]
                 );
 
+            }
+
+
+
+        } catch (\Exception $e) {
+
+
+            Log::error(
+                'Companies House Error',
+                [
+                    'message' =>
+                        $e->getMessage()
+                ]
+            );
+
+        }
+
+
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | IMPROVED COMPANY MATCHING
+        |--------------------------------------------------------------------------
+        */
+
+        $company = null;
+
+
+        $searchName =
+            strtoupper(
+                trim($validated['query'])
+            );
+
+
+
+        foreach ($items as $item) {
+
+
+            $title =
+                strtoupper(
+                    $item['title'] ?? ''
+                );
+
+
+
+            similar_text(
+                $title,
+                $searchName,
+                $percentage
+            );
+
+
+
+            if ($percentage >= 70) {
+
+                $company = $item;
+
+                break;
+            }
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | FALLBACK MATCH
+        |--------------------------------------------------------------------------
+        */
+
+
+        if (
+            !$company
+            &&
+            count($items) > 0
+        ) {
+
+            $company =
+                $items[0];
+
+        }
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | COMPANY PROFILE PLACEHOLDERS
+        |--------------------------------------------------------------------------
+        */
+
+
+        $companyProfile = null;
+
+        $filings = null;
+
+
+
+        if (
+            !empty($company['company_number'])
+        ) {
+
+
+            try {
+
+
+                $profileResponse = Http::withBasicAuth(
+
+                    config('services.companies_house.key'),
+
+                    ''
+
+                )->get(
+
+                    "https://api.company-information.service.gov.uk/company/{$company['company_number']}"
+
+                );
+
+
+
+                if ($profileResponse->successful()) {
+
+
+                    $companyProfile =
+                        $profileResponse->json();
+
+                }
+
+
+
+
+
+                $filingsResponse = Http::withBasicAuth(
+
+                    config('services.companies_house.key'),
+
+                    ''
+
+                )->get(
+
+                    "https://api.company-information.service.gov.uk/company/{$company['company_number']}/filing-history",
+
+                    [
+                        'items_per_page' => 5
+                    ]
+
+                );
+
+
+
                 if ($filingsResponse->successful()) {
 
-                    $filingsItems = $filingsResponse->json('items', []);
 
-                    $filings = collect($filingsItems)
-                        ->map(function ($f) {
+                    $filingsItems =
+                        $filingsResponse->json('items', []);
 
-                            return
-                                ($f['description'] ?? '')
-                                . ' (' . ($f['date'] ?? '') . ')';
 
-                        })
-                        ->implode("\n");
+
+                    $filings =
+                        collect($filingsItems)
+                            ->map(function ($f) {
+
+
+                                return
+                                    ($f['description'] ?? '')
+                                    .
+                                    ' ('
+                                    .
+                                    ($f['date'] ?? '')
+                                    .
+                                    ')';
+
+                            })
+                            ->implode("\n");
+
                 }
+
+
 
             } catch (\Exception $e) {
 
-                \Log::error('Company Profile Error', [
-                    'message' => $e->getMessage()
-                ]);
+
+                Log::error(
+                    'Company Profile Error',
+                    [
+                        'message' =>
+                            $e->getMessage()
+                    ]
+                );
+
             }
+
         }
+
+
 
         /*
         |--------------------------------------------------------------------------
@@ -258,27 +486,250 @@ class ComplianceLookupController extends Controller
 
         $registeredOfficeFormatted = null;
 
-        if (!empty($companyProfile['registered_office_address'])) {
 
-            $registeredOfficeFormatted = implode(
-                ', ',
-                array_filter($companyProfile['registered_office_address'])
-            );
+        if (
+            !empty($companyProfile['registered_office_address'])
+        ) {
+
+
+            $registeredOfficeFormatted =
+                implode(
+                    ', ',
+                    array_filter(
+                        $companyProfile['registered_office_address']
+                    )
+                );
+
         }
+
+
+
+
 
         /*
         |--------------------------------------------------------------------------
-        | NAFD + SAIF
+        | CMA PRICE TRANSPARENCY CHECK
         |--------------------------------------------------------------------------
         */
 
-        $queryEncoded = urlencode($validated['query']);
+
+        $cmaOnline = 'Unknown';
+
+        $splUrl = null;
+
+        $cmaEvidence = null;
+
+
+
+        if ($website) {
+
+
+            try {
+
+
+                $websiteResponse =
+                    Http::timeout(10)
+                        ->get($website);
+
+
+
+                if ($websiteResponse->successful()) {
+
+
+                    $html =
+                        $websiteResponse->body();
+
+
+
+                    $htmlLower =
+                        strtolower($html);
+
+
+
+                    if (
+                        str_contains(
+                            $htmlLower,
+                            'standardised price list'
+                        )
+                        ||
+                        str_contains(
+                            $htmlLower,
+                            'standardized price list'
+                        )
+                        ||
+                        str_contains(
+                            $htmlLower,
+                            'price list'
+                        )
+                    ) {
+
+
+                        $cmaOnline =
+                            'Yes';
+
+
+
+                        preg_match_all(
+                            '/https?:\/\/[^"\']+\.pdf/i',
+                            $html,
+                            $pdfMatches
+                        );
+
+
+
+                        if (
+                            !empty($pdfMatches[0])
+                        ) {
+
+
+                            foreach (
+                                $pdfMatches[0]
+                                as $pdf
+                            ) {
+
+
+                                if (
+                                    str_contains(
+                                        strtolower($pdf),
+                                        'price'
+                                    )
+                                    ||
+                                    str_contains(
+                                        strtolower($pdf),
+                                        'standard'
+                                    )
+                                ) {
+
+                                    $splUrl =
+                                        $pdf;
+
+                                    break;
+
+                                }
+
+                            }
+
+
+                            if (!$splUrl) {
+
+                                $splUrl =
+                                    $pdfMatches[0][0];
+
+                            }
+
+                        }
+
+
+                        $cmaEvidence =
+                            $splUrl;
+
+                    }
+
+
+                }
+
+
+            } catch (\Exception $e) {
+
+
+                Log::error(
+                    'CMA Check Error',
+                    [
+                        'message' =>
+                            $e->getMessage()
+                    ]
+                );
+
+            }
+
+        }
+
+
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | NAFD + SAIF SEARCH LINKS
+        |--------------------------------------------------------------------------
+        */
+
+
+        $queryEncoded =
+            urlencode(
+                $validated['query']
+            );
+
 
         $nafdSearch =
             "https://www.google.com/search?q=site:funeral-directory.co.uk+{$queryEncoded}";
 
+
         $saifSearch =
             "https://www.google.com/search?q=site:saif.org.uk+{$queryEncoded}";
+
+
+
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | RISK CALCULATIONS
+        |--------------------------------------------------------------------------
+        */
+
+
+        $companyStatus =
+            strtolower(
+                $companyProfile['company_status'] ?? ''
+            );
+
+
+
+        $riskCH = 'AMBER';
+
+
+
+        if ($companyProfile) {
+
+
+            if (
+                $companyStatus === 'active'
+            ) {
+
+                $riskCH =
+                    'GREEN';
+
+            } else {
+
+                $riskCH =
+                    'RED';
+
+            }
+
+        }
+
+
+
+        $riskReviews =
+            (
+                ($firstPlace['rating'] ?? 0) >= 4
+                &&
+                ($firstPlace['userRatingCount'] ?? 0) >= 5
+            )
+                ? 'GREEN'
+                : 'AMBER';
+
+
+
+        $riskCMAOnline =
+            $cmaOnline === 'Yes'
+                ? 'GREEN'
+                : 'AMBER';
+
+
+
+
 
         /*
         |--------------------------------------------------------------------------
@@ -286,94 +737,233 @@ class ComplianceLookupController extends Controller
         |--------------------------------------------------------------------------
         */
 
+
         return response()->json([
 
-            'places' => collect($places)->map(function ($p) {
 
-                return [
-                    'id' => $p['id'] ?? null,
-                    'name' => $p['displayName']['text'] ?? null,
-                    'rating' => $p['rating'] ?? null,
-                    'userRatingCount' => $p['userRatingCount'] ?? null,
-                    'googleMapsUri' => $p['googleMapsUri'] ?? null,
-                    'address' => $p['formattedAddress'] ?? null,
-                ];
+            'places' => collect($places)
+                ->map(function ($p) {
 
-            })->values(),
 
-            'firmName' => $validated['query'],
+                    return [
 
-            'registeredName' => $company['title'] ?? null,
+                        'id' =>
+                            $p['id'] ?? null,
 
-            'companyNumber' => $company['company_number'] ?? null,
+
+                        'name' =>
+                            $p['displayName']['text'] ?? null,
+
+
+                        'rating' =>
+                            $p['rating'] ?? null,
+
+
+                        'userRatingCount' =>
+                            $p['userRatingCount'] ?? null,
+
+
+                        'googleMapsUri' =>
+                            $p['googleMapsUri'] ?? null,
+
+
+                        'address' =>
+                            $p['formattedAddress'] ?? null,
+
+                    ];
+
+
+                })
+                ->values(),
+
+
+
+            'firmName' =>
+                $validated['query'],
+
+
+
+            'registeredName' =>
+                $company['title'] ?? null,
+
+
+
+            'companyNumber' =>
+                $company['company_number'] ?? null,
+
+
 
             'address' =>
                 $firstPlace['formattedAddress']
-                ?? $company['address_snippet']
-                ?? null,
+                ??
+                $company['address_snippet']
+                ??
+                null,
 
-            'postcode' => $postcode,
 
-            'website' => $website,
 
-            'phone' => $phone,
+            'postcode' =>
+                $postcode,
 
-            'dateChecked' => now()->toDateString(),
 
-            'googleUrl' => $firstPlace['googleMapsUri'] ?? null,
 
-            'googleRating' => $firstPlace['rating'] ?? null,
+            'website' =>
+                $website,
 
-            'googleCount' => $firstPlace['userRatingCount'] ?? null,
 
-            'googleDate' => now()->toDateString(),
 
-            'chStatus' => $companyProfile['company_status'] ?? null,
+            'phone' =>
+                $phone,
+
+
+
+            'dateChecked' =>
+                now()->toDateString(),
+
+
+
+            'googleUrl' =>
+                $firstPlace['googleMapsUri'] ?? null,
+
+
+
+            'googleRating' =>
+                $firstPlace['rating'] ?? null,
+
+
+
+            'googleCount' =>
+                $firstPlace['userRatingCount'] ?? null,
+
+
+
+            'googleDate' =>
+                now()->toDateString(),
+
+
+
+            'chStatus' =>
+                $companyProfile['company_status'] ?? null,
+
+
 
             'sic' =>
                 isset($companyProfile['sic_codes'])
-                    ? implode(', ', $companyProfile['sic_codes'])
-                    : null,
+                    ?
+                    implode(
+                        ', ',
+                        $companyProfile['sic_codes']
+                    )
+                    :
+                    null,
 
-            'registeredOffice' => $registeredOfficeFormatted,
+
+
+            'registeredOffice' =>
+                $registeredOfficeFormatted,
+
+
 
             'nextAccounts' =>
                 $companyProfile['accounts']['next_accounts']['due_on']
-                ?? null,
+                ??
+                null,
+
+
 
             'nextCS' =>
                 $companyProfile['confirmation_statement']['next_due']
-                ?? null,
+                ??
+                null,
 
-            'filings' => $filings,
+
+
+            'filings' =>
+                $filings,
+
+
 
             'chUrl' =>
+
                 !empty($company['company_number'])
-                    ? 'https://find-and-update.company-information.service.gov.uk/company/' . $company['company_number']
-                    : null,
 
-            'nafdMember' => 'Check',
+                    ?
 
-            'nafdEvidence' => $nafdSearch,
+                    'https://find-and-update.company-information.service.gov.uk/company/'
+                    .
+                    $company['company_number']
 
-            'saifMember' => 'Check',
+                    :
 
-            'saifEvidence' => $saifSearch,
+                    null,
 
-            'shopfrontData' => $photoUrl,
+
+
+            'nafdMember' =>
+                'Check',
+
+
+
+            'nafdEvidence' =>
+                $nafdSearch,
+
+
+
+            'saifMember' =>
+                'Check',
+
+
+
+            'saifEvidence' =>
+                $saifSearch,
+
+
+
+            'shopfrontData' =>
+                $photoUrl,
+
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | CMA DATA
+            |--------------------------------------------------------------------------
+            */
+
+
+            'cmaOnline' =>
+                $cmaOnline,
+
+
+            'splUrl' =>
+                $splUrl,
+
+
+            'cmaEvidence' =>
+                $cmaEvidence,
+
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | RISKS
+            |--------------------------------------------------------------------------
+            */
+
 
             'riskReviews' =>
-                ($firstPlace
-                && ($firstPlace['rating'] ?? 0) >= 4
-                && ($firstPlace['userRatingCount'] ?? 0) >= 5)
-                    ? 'GREEN'
-                    : 'AMBER',
+                $riskReviews,
+
 
             'riskCH' =>
-                $companyProfile
-                    ? 'GREEN'
-                    : 'AMBER',
+                $riskCH,
+
+
+            'riskCMAOnline' =>
+                $riskCMAOnline,
+
         ]);
+
     }
 
 }
